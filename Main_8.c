@@ -1,13 +1,13 @@
 /* UNIVERSIDAD DEL VALLE DE GUATEMALA
  * DEPARTAMENTO DE INGENIERIA ELCTRONICA & MECATRONICA
  * CURSO DE PROGRAMACION DE MICROCONTROLADORES
- * LABORATORIO No.7
+ * LABORATORIO No.8
  * 
  * File:   main7.c
  * Author: Selvin E. Peralta Cifuentes 
  *
  * Created on 20 de abril de 2021, 09:21 AM
- * Ultima Actualizacion:  18 de abril de 2021  
+ * Ultima Actualizacion:   21 de abril de 2021
  */
 //-----------------------------------------------------------------------------------------------------------------------------------
 // CONFIG1
@@ -31,13 +31,7 @@
 // Use project enums instead of #define for ON and OFF.
 #include <xc.h>
 #include <stdint.h>             // TIPOS DE DATOS ESTANDAR Y OTROS.
-
-
 #define _XTAL_FREQ 4000000
-
-#define tesbit(var,bit)((var)&   (1<<(bit)))
-#define tesbit(var,bit)((var)|=  (1<<(bit)))
-#define tesbit(var,bit)((var)&=~ (1<<(bit)))
 // DECLARACION DE VARIABLES
 uint8_t V;
 uint8_t V1;
@@ -58,46 +52,54 @@ void __interrupt() isr(void){
     if(T0IF == 1) {       //Verificamos si la bandera del TMR0 es 1
         TMR0  = 236;      //Colocamos el valor a TMR0 para que funcione la interrupcion cada 5ms
         T0IF  = 0;        //Reiniciamos la bandera del TMR0
-        PORTE = 0xFF;     //Encendemos el Puerto E
-        PORTA++;          //Aumentamos el valor del puerto A cada 5ms
+        PORTE = 0x00;     //Encendemos el Puerto E
         if(Suitw == 0){       //Verificamos la variable para poder realizar el suicheo 
             V1    = Unidad;   //Movemos el valor de la variable unidad a V
-            PORTD = Tabla(V1);//Movemos el valor de la tabla a PORTD
-            RE0   = 0;        //Volvemos 0 el pin del puerto E
+            PORTC = Tabla(V1);//Movemos el valor de la tabla a PORTD
+            RE0   = 1;        //Volvemos 0 el pin del puerto E
             Suitw = 1;        //Cambiamos el valor de Suitw para poder controlar el suicheo 
             return;
         }    
         if(Suitw == 1){
             V1    = Decena;
-            PORTD = Tabla(V1);
-            RE1   = 0;
+            PORTC = Tabla(V1);
+            RE1   = 1;
             Suitw = 2;
             return;
         }    
         if(Suitw == 2){
             V1    = Centena;
-            PORTD = Tabla(V1);
-            RE2   = 0;
+            PORTC = Tabla(V1);
+            RE2   = 1;
             Suitw = 0;
             return;
         }
+    }
+//----------------------------- INTERRUPCION DEL ADC ----------------------------
+    if(ADIF == 1){           //Verificamos si la bandera del IoCH es 1 
+        if(ADCON0bits.CHS == 0){        //Verificamos si el pin esta precionado 
+            PORTD = ADRESH;         //Aumentamos el Puerto C cuando se preciona el boton 
+        }
+        else{       //Verificamos si el pin esta precionado 
+            V = ADRESH;        //Decrementamos el Puerto C cuando se preciona el boton
+        }
+        ADIF = 0;          //Limpiamos la bandera del IoCH
     }
 }
 //__________________________
 // FUNCION PRINCIPAL (MAIN)
 //__________________________
 void main(void){
-     
     Setup();
+    __delay_us(50);
     ADCON0bits.GO = 1;
     while(1){
+     Decimal_CV();
      if(ADCON0bits.GO == 0){ 
          if (ADCON0bits.CHS == 0){
-             PORTC = ADRESH;
              ADCON0bits.CHS = 1;
          }
          else{
-             PORTD = ADRESH;
              ADCON0bits.CHS = 0;
          }
          __delay_us(50);
@@ -108,7 +110,6 @@ void main(void){
 }
 //__________________________
 //TABLA DE VALORES DE LOS DISPLAYS
-
 int Tabla(int V1){
     int w;
     switch (V1){
@@ -155,7 +156,6 @@ void Decimal_CV(void){
      Unidad = (V - Centena*100 - Decena*10)/1;//Realizamos la operacion para encontrar la unidad
      return;
 }
-
 //__________________________
 // FUNCION DE CONFIGURACION
 
@@ -182,10 +182,10 @@ void Setup(void){
     ADCON1bits.VCFG0 = 0;
     ADCON1bits.VCFG1 = 0;
     
-    ADCON0bits.ADCS  = 1;
-    ADCON0bits.CHS   = 5;
+    ADCON0bits.ADCS  = 1;   //Configuracion del reloj del modulo 
+    ADCON0bits.CHS   = 0;   //Seleccionamos el canal donde querramos empezar
     __delay_us(100);
-    ADCON0bits.ADON  = 1;
+    ADCON0bits.ADON  = 1;   //Encendemos el modulo ADC
     __delay_us(50);
 //-------------------------- CONFIGURACION DEL TMRO ----------------------------
     OPTION_REGbits.T0CS = 0;
@@ -195,5 +195,9 @@ void Setup(void){
     OPTION_REGbits.PS0  = 1;
 //---------------------- CONFIGURACION DE INTERRUPCIONES -----------------------
     INTCONbits.GIE  = 1;
+    INTCONbits.PEIE = 1;
+    PIE1bits.ADIE   = 1;
     INTCONbits.T0IE = 1;
+    PIR1bits.ADIF   = 1;
 }
+
